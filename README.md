@@ -109,8 +109,8 @@ The focus is on enabling customization of robot behaviors through finetuning.
 Clone the repo:
 
 ```sh
-git clone https://github.com/NVIDIA/Isaac-GR00T
-cd Isaac-GR00T
+git clone https://github.com/jisuSong0625/Isaac-GR00T-BiSO101.git
+cd Isaac-GR00T-BiSO101
 ```
 
 Create a new conda environment and install the dependencies. We recommend Python 3.10:

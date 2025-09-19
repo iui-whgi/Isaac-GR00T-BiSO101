@@ -32,7 +32,6 @@ from gr00t.model.gr00t_n1 import GR00T_N1_5
 from gr00t.model.transforms import EMBODIMENT_TAG_MAPPING
 from gr00t.utils.peft import get_lora_model
 
-
 @dataclass
 class ArgsConfig:
     """Configuration for GR00T model fine-tuning."""
@@ -45,6 +44,7 @@ class ArgsConfig:
     """Directory to save model checkpoints."""
 
     data_config: str = "fourier_gr1_arms_only"
+    # data_config: str = "so101"
     """
     Data configuration to use for training.
     Options:
@@ -109,9 +109,6 @@ class ArgsConfig:
 
     dataloader_num_workers: int = 12
     """Number of workers for data loading per GPU."""
-
-    gradient_accumulation_steps: int = 1
-    """Gradient accumulation steps for training."""
 
     dataloader_prefetch_factor: int = 4
     """Prefetch factor for data loading."""
@@ -260,7 +257,7 @@ def main(config: ArgsConfig):
         bf16=True,
         tf32=True,
         per_device_train_batch_size=config.batch_size,
-        gradient_accumulation_steps=config.gradient_accumulation_steps,
+        gradient_accumulation_steps=1,
         dataloader_num_workers=config.dataloader_num_workers,
         dataloader_pin_memory=False,
         dataloader_prefetch_factor=config.dataloader_prefetch_factor,
@@ -301,8 +298,12 @@ def main(config: ArgsConfig):
 
 
 if __name__ == "__main__":
+    # os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:128'
+    os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True   '
     # Parse arguments using tyro
     config = tyro.cli(ArgsConfig)
+    
+    torch.cuda.empty_cache()
 
     # Print the tyro config
     print("\n" + "=" * 50)
@@ -320,6 +321,8 @@ if __name__ == "__main__":
     ), f"Number of GPUs requested ({config.num_gpus}) is greater than the available GPUs ({available_gpus})"
     assert config.num_gpus > 0, "Number of GPUs must be greater than 0"
     print(f"Using {config.num_gpus} GPUs")
+    
+    torch.cuda.empty_cache()
 
     if config.num_gpus == 1:
         # Single GPU mode - set CUDA_VISIBLE_DEVICES=0

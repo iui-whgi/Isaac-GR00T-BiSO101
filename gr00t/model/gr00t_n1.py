@@ -28,7 +28,7 @@ from .action_head.flow_matching_action_head import (
     FlowmatchingActionHead,
     FlowmatchingActionHeadConfig,
 )
-from .backbone import EagleBackbone
+from .backbone import MambaBackbone
 
 BACKBONE_FEATURE_KEY = "backbone_features"
 ACTION_KEY = "action_pred"
@@ -78,7 +78,7 @@ class GR00T_N1_5(PreTrainedModel):
         super().__init__(config)
         self.local_model_path = local_model_path
 
-        self.backbone = EagleBackbone(**config.backbone_cfg)
+        self.backbone = MambaBackbone(**config.backbone_cfg)
         action_head_cfg = FlowmatchingActionHeadConfig(**config.action_head_cfg)
         self.action_head = FlowmatchingActionHead(action_head_cfg)
 

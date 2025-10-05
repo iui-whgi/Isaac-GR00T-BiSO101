@@ -62,6 +62,51 @@ Here is the general procedure to use GR00T N1.5:
 4. Our repo provides convenient scripts for finetuning the pre-trained GR00T N1.5 model on user's data, and running inference.
 5. The user will connect the `Gr00tPolicy` to the robot controller to execute actions on their target hardware.
 
+## Mamba Integration
+
+This repository includes experimental support for using **Mamba** as an alternative backbone to Eagle for text-only robot control tasks. Mamba provides efficient sequence modeling with linear complexity, making it suitable for robotics applications where computational efficiency is important.
+
+### Features
+
+- **Text-only Processing**: Mamba backbone processes only text inputs (no vision)
+- **Efficient Training**: Linear complexity in sequence length
+- **Drop-in Replacement**: Compatible with existing GR00T training pipeline
+- **Configurable**: Easy switching between Eagle and Mamba backbones
+
+### Usage
+
+To train with Mamba backbone:
+
+```bash
+python scripts/gr00t_finetune.py \
+    --use_mamba True \
+    --mamba_path state-spaces/mamba-2.8b-hf \
+    --tune_llm True \
+    --dataset_path /path/to/your/dataset \
+    --output_dir /path/to/output
+```
+
+### Testing Integration
+
+Test the Mamba integration:
+
+```bash
+python test_mamba_integration.py
+```
+
+### Configuration Options
+
+- `--use_mamba`: Enable Mamba backbone (default: True)
+- `--mamba_path`: Path to Mamba model (default: "state-spaces/mamba-2.8b-hf")
+- `--mamba_type`: Type of Mamba model (default: "mamba-2.8b")
+- `--tune_llm`: Whether to fine-tune the Mamba model (default: False)
+
+### Limitations
+
+- **Text-only**: Mamba backbone does not process visual inputs
+- **No Vision**: For tasks requiring visual understanding, use Eagle backbone
+- **Experimental**: This is an experimental feature and may have limitations
+
 ## What's New in GR00T N1.5
 
 GR00T N1.5 represents a significant upgrade over GR00T N1, with improvements in both model architecture and data leading to better performance in many aspects.

@@ -70,10 +70,20 @@ class ArgsConfig:
     base_model_path: str = "nvidia/GR00T-N1.5-3B"
     """Path or HuggingFace model ID for the base model."""
 
+    # Mamba specific parameters
+    use_mamba: bool = True
+    """Whether to use Mamba backbone instead of Eagle."""
+
+    mamba_path: str = "state-spaces/mamba-2.8b-hf"
+    """Path to Mamba model."""
+
+    mamba_type: str = "mamba-2.8b"
+    """Type of Mamba model to use."""
+
     tune_llm: bool = False
     """Whether to fine-tune the language model backbone."""
 
-    tune_visual: bool = False
+    tune_visual: bool = True
     """Whether to fine-tune the vision tower."""
 
     tune_projector: bool = True
@@ -191,17 +201,81 @@ def main(config: ArgsConfig):
     data_action_horizon = len(data_config_cls.action_indices)
 
     # Load model
-    model = GR00T_N1_5.from_pretrained(
-        pretrained_model_name_or_path=config.base_model_path,
-        tune_llm=config.tune_llm,  # backbone's LLM
-        tune_visual=config.tune_visual,  # backbone's vision tower
-        tune_projector=config.tune_projector,  # action head's projector
-        tune_diffusion_model=config.tune_diffusion_model,  # action head's DiT
-    )
+    if config.use_mamba:
+        print(f"Using Mamba backbone: {config.mamba_path}")
+        # Mamba 백본을 사용하는 경우 직접 모델 생성
+        from gr00t.model.gr00t_n1 import GR00T_N1_5_Config
+        from gr00t.model.backbone.mamba_backbone import MambaBackbone
+        from gr00t.model.action_head.flow_matching_action_head import FlowmatchingActionHeadConfig
+        
+        # Mamba 백본 설정
+        backbone_cfg = {
+            "tune_llm": config.tune_llm,
+            "tune_visual": config.tune_visual,  # 비디오 처리 활성화
+            "select_layer": -1,
+            "reproject_vision": False,
+            "use_flash_attention": False,
+            "load_bf16": False,
+            "mamba_path": config.mamba_path,
+            "project_to_dim": 1536,
+            "mamba_type": config.mamba_type,
+            "clip_path": None,  # 기본 CLIP 모델 사용
+        }
+        
+        # 액션 헤드 설정 (기본값 사용)
+        action_head_cfg = {
+            "action_dim": 32,
+            "action_horizon": data_action_horizon,
+            "add_pos_embed": True,
+            "backbone_embedding_dim": 1536,
+            "hidden_size": 1024,
+            "input_embedding_dim": 1536,
+            "max_action_dim": 32,
+            "max_state_dim": 64,
+            "model_dtype": "float32",
+            "noise_beta_alpha": 1.5,
+            "noise_beta_beta": 1.0,
+            "noise_s": 0.999,
+            "num_inference_timesteps": 4,
+            "num_target_vision_tokens": 32,
+            "num_timestep_buckets": 1000,
+            "tune_diffusion_model": config.tune_diffusion_model,
+            "tune_projector": config.tune_projector,
+            "use_vlln": True,
+        }
+        
+        # 모델 설정 생성
+        model_config = GR00T_N1_5_Config(
+            backbone_cfg=backbone_cfg,
+            action_head_cfg=action_head_cfg,
+            action_horizon=data_action_horizon,
+            action_dim=32,
+            compute_dtype="bfloat16",
+        )
+        
+        # 모델 생성
+        model = GR00T_N1_5(model_config, local_model_path="")
+        
+        # 훈련 가능한 파라미터 설정
+        model.backbone.set_trainable_parameters(
+            tune_llm=config.tune_llm, tune_visual=config.tune_visual
+        )
+        model.action_head.set_trainable_parameters(
+            tune_projector=config.tune_projector, tune_diffusion_model=config.tune_diffusion_model
+        )
+    else:
+        # 기존 Eagle 백본 사용
+        model = GR00T_N1_5.from_pretrained(
+            pretrained_model_name_or_path=config.base_model_path,
+            tune_llm=config.tune_llm,  # backbone's LLM
+            tune_visual=config.tune_visual,  # backbone's vision tower
+            tune_projector=config.tune_projector,  # action head's projector
+            tune_diffusion_model=config.tune_diffusion_model,  # action head's DiT
+        )
 
     # Update action_horizon to match data config
     # Need to recreate action head with correct config since it was initialized with old config
-    if data_action_horizon != model.action_head.config.action_horizon:
+    if not config.use_mamba and data_action_horizon != model.action_head.config.action_horizon:
         print(
             f"Recreating action head with action_horizon {data_action_horizon} (was {model.action_head.config.action_horizon})"
         )
@@ -260,7 +334,7 @@ def main(config: ArgsConfig):
         gradient_accumulation_steps=1,
         dataloader_num_workers=config.dataloader_num_workers,
         dataloader_pin_memory=False,
-        dataloader_prefetch_factor=config.dataloader_prefetch_factor,
+        dataloader_prefetch_factor=config.dataloader_prefetch_factor if config.dataloader_num_workers > 0 else None,
         dataloader_persistent_workers=config.dataloader_num_workers > 0,
         optim="adamw_torch",
         adam_beta1=0.95,
